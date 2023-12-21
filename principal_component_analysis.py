@@ -30,7 +30,9 @@ def image_pca(image : np.ndarray, n_components : int) -> np.ndarray:
 
     reconstructed_image = pca.inverse_transform(reduced_image)
 
-    reconstructed_image *= 255.0
+    reconstructed_image = cv2.normalize(reconstructed_image, None, 0, 255, cv2.NORM_MINMAX)
+
+    # reconstructed_image *= 255.0
 
     return np.clip(reconstructed_image, 0, 255).astype(np.uint8)
 
@@ -65,7 +67,9 @@ def find_optimal_component_n(image : np.ndarray) -> int:
         reduced_image = pca.fit_transform(gray_image_normalized)
         reconstructed_image = pca.inverse_transform(reduced_image)
 
-        reconstructed_image *= 255.0
+        # reconstructed_image *= 255.0
+
+        reconstructed_image = cv2.normalize(reconstructed_image, None, 0, 255, cv2.NORM_MINMAX)
 
         mse = mean_squared_error(gray_image.reshape((-1, )), reconstructed_image.astype(int).reshape((-1,)))
 
