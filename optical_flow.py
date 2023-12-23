@@ -88,13 +88,15 @@ def find_good_corners(frame         : np.ndarray, *,
 
     gray_image = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-    found_corners = np.intp(cv2.goodFeaturesToTrack(
+    _found_corners = cv2.goodFeaturesToTrack(
         image        = gray_image, 
         maxCorners   = max_corners, 
         qualityLevel = quality_level, 
         minDistance  = min_distance, 
         blockSize    = block_size
-    ))
+    )
+
+    found_corners = np.intp(_found_corners)
 
     for corner in found_corners:
         corners.append(corner.ravel())
@@ -102,7 +104,7 @@ def find_good_corners(frame         : np.ndarray, *,
     if (len(corners) == 0):
         return None
 
-    return np.stack(corners, dtype = np.int32)
+    return np.stack(corners, dtype = np.int32), _found_corners
 
 
 def draw_history_points(frame          : np.ndarray, 
@@ -149,9 +151,27 @@ def resize_to_width(frame : np.ndarray, target_width : int) -> np.ndarray:
 
     return cv2.resize(frame, None, None, fx = 512 / frame.shape[1], fy = 512 / frame.shape[1])
 
+def predict_next_corner(frame_1 : np.ndarray, 
+                        frame_2 : np.ndarray, 
+                        corners : List[ tuple ]) -> tuple:
+
+    assert isinstance(frame_1, np.ndarray)
+
+    assert isinstance(frame_2, np.ndarray)
+
+    # print(corners.shape)
+
+    corners_next, status, err = cv2.calcOpticalFlowPyrLK(
+        frame_1, frame_2, corners, None, winSize = (15, 15), maxLevel = 1,
+        criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 100, 0.003)
+    )
+
+    # print(status)
+
+    return np.stack([ np.intp(corners_next).ravel() ]), corners_next.reshape((-1, 1, 2))
+
 
 if (__name__ == "__main__"):
-
 
     filename = os.path.join(os.path.dirname(__file__), "data/Q2/optical_flow.mp4")
 
@@ -159,6 +179,11 @@ if (__name__ == "__main__"):
 
     history_points = []
 
+    corner = None
+
+    corners = None
+
+    prev_frame = None
 
     while cap.isOpened():
 
@@ -167,7 +192,24 @@ if (__name__ == "__main__"):
         if not ret:
             break
 
-        corner = find_good_corners(frame)
+        if (corners is None):
+
+            corner, corners = find_good_corners(frame)
+            prev_frame = frame.copy()
+
+        else:
+
+            # assert prev_frame is not frame
+
+            corner, corners = predict_next_corner(
+                frame_1 = cv2.cvtColor(prev_frame, cv2.COLOR_BGR2GRAY),
+                frame_2 = cv2.cvtColor(frame,      cv2.COLOR_BGR2GRAY),
+                corners = corners
+            )
+
+            prev_frame = frame.copy()
+
+        print(corner)
 
         if (corner is None):
             continue
